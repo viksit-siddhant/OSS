@@ -1,0 +1,4 @@
+gitpython
+pygithub
+docker
+requests
