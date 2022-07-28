@@ -4,13 +4,16 @@ import docker
 import re,os,json,tempfile,datetime, sys
 from git import Repo
 from github import Github
+from flask import Flask, render_template, request
 
+app = Flask(__name__)
 keys = {}
 for line in open('keys.txt','r'):
     key,value = line.strip().split(':')
     keys[key] = value
 
 g = Github(keys['github'])
+client = docker.from_env()
 
 def get_url_of_package(package, platform):
     if platform == "NPM":
@@ -22,7 +25,7 @@ def get_url_of_package(package, platform):
         repos = g.search_repositories(f'{package} language:python')
         return repos[0].html_url
 
-def cve_detection(url,client):
+def cve_detection(url):
     raw = client.containers.run('aquasec/trivy',f'repo -f json {url}').decode('utf-8')
     for i,line in enumerate(raw.split('\n')):
         if 'Total' in line:
@@ -93,10 +96,9 @@ def metadata_analysis(repo):
 def main(url, logfile=None):
     if logfile is None:
         logfile = open('logs.log','w')
-    print("Running Trivy...")
-    client = docker.from_env()
-    cves = json.loads(cve_detection(url,client))
-    severity = {}
+    logfile.write("Running Trivy...")
+    cves = json.loads(cve_detection(url))
+    severity = {'LOW':0,'MEDIUM':0,'HIGH':0,'CRITICAL':0}
     try:
         for class_vulns in cves['Results']:
             for vuln in class_vulns['Vulnerabilities']:
@@ -110,12 +112,27 @@ def main(url, logfile=None):
                     severity[vuln['Severity']] += 1
     except KeyError:
         pass
-    print("Scanning files and github")
+    logfile.write(f"Severity: {severity}")
+    logfile.write("Scanning files and github")
     num_trash_urls = scan_files(url)
     repo_score, topics = metadata_analysis(url)
+    return {'severity':severity,'num_trash_urls':num_trash_urls,'repo_score':repo_score,'topics':topics}
     
+@app.route('/')
+def index():
+    return render_template('form.html')
 
-
-if __name__ == '__main__':
-   main('https://github.com/encryptedcation/NoDoubt')
-   #print(get_url_of_package('discord','Pypi'))
+@app.route('/result',methods=['GET'])
+def result():
+    url = request.args.get('url')
+    result = main(url)
+    message = "This repo cannot be said to be malicious or malicious, but the low amount of eyeballs on it make it not trustworthy enough to use on a large scale without verification."
+    if result['topics'] or result['severity'] > 0:
+        message = "This repo can be malicious"
+    result['repo_score'] -= result['severity']['LOW'] * 3 + result['severity']['MEDIUM'] * 5 + result['severity']['HIGH'] * 8 + result['severity']['CRITICAL'] * 12
+    if result['repo_score'] < 30:
+        message = 'This repo can be vulnerable'
+    elif result['repo_score'] > 100:
+        message= "This repo is very secure"
+    return render_template('result.html',message=message, low = result['severity']['LOW'],
+                            medium = result['severity']['MEDIUM'], high = result['severity']['HIGH'], critical = result['severity']['CRITICAL'])
