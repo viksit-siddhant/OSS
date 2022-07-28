@@ -7,10 +7,9 @@ from github import Github
 from flask import Flask, render_template, request
 
 app = Flask(__name__)
-keys = {}
-for line in open('keys.txt','r'):
-    key,value = line.strip().split(':')
-    keys[key] = value
+keys = {'github' : os.getenv('GITHUB_PAT'),
+    'google' : os.getenv('GOOGLE_API_KEY'),
+    'libraries' : os.getenv('LIBRARY_KEY')}
 
 g = Github(keys['github'])
 client = docker.from_env()
