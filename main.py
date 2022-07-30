@@ -96,7 +96,7 @@ def metadata_analysis(repo):
     for author in authors:
         authors_score += author.followers
     score = authors_score * 0.3 + stars - num_issues*10 - (datetime.datetime.now() - last_committed).days / 10 - topic_sensitive * 100
-    return score, topic_sensitive
+    return score, topic_sensitive, stars
 
 def main(url):
 	cves = json.loads(cve_detection(url))
@@ -111,8 +111,8 @@ def main(url):
 	except KeyError:
 		pass
 	num_trash_urls = scan_files(url)
-	repo_score, topics = metadata_analysis(url)
-	return {'severity':severity,'num_trash_urls':num_trash_urls,'repo_score':repo_score,'topics':topics}
+	repo_score, topics,stars = metadata_analysis(url)
+	return {'severity':severity,'stars':stars,'num_trash_urls':num_trash_urls,'repo_score':repo_score,'topics':topics}
     
 @app.route('/')
 def index():
@@ -135,7 +135,13 @@ def result():
 		message = "This repo can be malicious"
 	elif result['repo_score'] > 100:
 		message= "This repo is very secure"
-	return render_template('result.html',message=message, low = result['severity']['LOW'],
-                            medium = result['severity']['MEDIUM'], high = result['severity']['HIGH'], critical = result['severity']['CRITICAL'],score=result['repo_score'])
+	result['repo_score'] = min(result['repo_score'],100)
+	result['repo_score'] = max(result['repo_score'],0)
+	return render_template('result.html',message=message,
+							stars = result['stars'],
+							total_cves = result['severity']['HIGH'], 
+							critical = result['severity']['CRITICAL'],
+							score=result['repo_score']/10,
+							num_url=result['num_trash_urls'])
 
 app.run(host='0.0.0.0',port=80)

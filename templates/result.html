@@ -1,16 +1,15 @@
 <html>
     <body>
-        {{ low }} low-severity CVEs
+        {{ num_url }} Malicious URLs
 	<br>
-        {{ medium }} medium-severity CVEs
+		{{ total_cves }} CVEs, including {{ critical }} critical CVEs
 	<br>
-        {{ high }} high-severity CVEs
+		The repo has {{ stars }} stars
 	<br>
-        {{ critical }} critical-severity CVEs
-	<br>
-        This repository has a meta-score of {{ score }}
+        This repository has a meta-score of {{ score }}/10
 	<br>
         {{ message }}
+	<br>
 	<a href="/">Go back</a>
     </body>
 </html>
