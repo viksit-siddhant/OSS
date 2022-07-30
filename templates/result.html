@@ -1,15 +1,32 @@
 <html>
-    <body>
-        {{ num_url }} Malicious URLs
+
+<head>
+	<title>Notty OSS</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link href='https://fonts.googleapis.com/css?family=Space Grotesk' rel='stylesheet'>
+	<style>
+		body {
+			font-family: 'Space Grotesk';
+			font-size: 22px;
+			background: #091F2E;
+			color: #38C9A6;
+		}
+	</style>
+</head>
+
+<body>
+	{{ num_url }} Malicious URLs
 	<br>
-		{{ total_cves }} CVEs, including {{ critical }} critical CVEs
+	{{ total_cves }} CVEs, including {{ critical }} critical CVEs
 	<br>
-		The repo has {{ stars }} stars
+	The repo has {{ stars }} stars
 	<br>
-        This repository has a meta-score of {{ score }}/10
+	This repository has a meta-score of {{ score }}/10
 	<br>
-        {{ message }}
+	{{ message }}
 	<br>
 	<a href="/">Go back</a>
-    </body>
+</body>
+
 </html>
