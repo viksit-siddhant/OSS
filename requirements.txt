@@ -2,3 +2,5 @@ gitpython
 pygithub
 docker
 requests
+bs4
+flask

@@ -7,22 +7,28 @@ from github import Github
 from flask import Flask, render_template, request
 
 app = Flask(__name__)
-keys = {'github' : os.getenv('GITHUB_PAT'),
-    'google' : os.getenv('GOOGLE_API_KEY'),
-    'libraries' : os.getenv('LIBRARY_KEY')}
+keys = {}
+
+for line in open('keys.txt','r'):
+	k,v = line.strip().split(':')
+	keys[k] = v
 
 g = Github(keys['github'])
 client = docker.from_env()
 
-def get_url_of_package(package, platform):
-    if platform == "NPM":
-        url = f"https://www.npmjs.com/package/{package}"
-        r = requests.get(url)
-        soup = BeautifulSoup(r.text, 'html.parser')
-        return soup.find_all('a', {'aria-labelledby':'repository'})[0].get('href')
-    elif platform == 'Pypi':
-        repos = g.search_repositories(f'{package} language:python')
-        return repos[0].html_url
+def get_package_of_url(url, platform):
+	if platform == "NPM":
+		r = requests.get(url)
+		soup = BeautifulSoup(r.text, 'html.parser')
+		return soup.find_all('a', {'aria-labelledby':'repository'})[0].get('href')
+	elif platform == 'Pypi':
+		if url.endswith('/'):
+			url = url[:-1]
+		repo_name = re.findall('pypi.org/project/(.+)',url)[0]
+		if repo_name == "":
+			raise ValueError('Not valid pypi link')
+	r = requests.get(f"https://libraries.io/api/Pypi/{repo_name}?api_key={keys['libraries']}")
+	return r.json()['repository_url']
 
 def cve_detection(url):
     raw = client.containers.run('aquasec/trivy',f'repo -f json {url}').decode('utf-8')
@@ -59,7 +65,7 @@ def scan_files(repo):
         body['threatInfo']['threatEntries'] = [ {"url" : url} for url in urls[limit:limit+500]]
         r = requests.post(f'https://safebrowsing.googleapis.com/v4/threatMatches:find?key={keys["google"]}',json=body,headers={'Content-Type': 'application/json'})
         limit += 500
-        if r.json():
+        if 'matches' in r.json():
             num_vuln_urls += len(r.json()['matches'])
 
     tempdir.cleanup()
@@ -92,30 +98,21 @@ def metadata_analysis(repo):
     score = authors_score * 0.3 + stars - num_issues*10 - (datetime.datetime.now() - last_committed).days / 10 - topic_sensitive * 100
     return score, topic_sensitive
 
-def main(url, logfile=None):
-    if logfile is None:
-        logfile = open('logs.log','w')
-    logfile.write("Running Trivy...")
-    cves = json.loads(cve_detection(url))
-    severity = {'LOW':0,'MEDIUM':0,'HIGH':0,'CRITICAL':0}
-    try:
-        for class_vulns in cves['Results']:
-            for vuln in class_vulns['Vulnerabilities']:
-                logfile.write(vuln['Title'])
-                if 'FixedVersion' in logfile:
-                    logfile.write(f'\nFixedVersion: {vuln["FixedVersion"]}')
-                logfile.write(f'\n{vuln["Severity"]}')
-                if vuln['Severity'] not in severity:
-                    severity[vuln['Severity']] = 1
-                else:
-                    severity[vuln['Severity']] += 1
-    except KeyError:
-        pass
-    logfile.write(f"Severity: {severity}")
-    logfile.write("Scanning files and github")
-    num_trash_urls = scan_files(url)
-    repo_score, topics = metadata_analysis(url)
-    return {'severity':severity,'num_trash_urls':num_trash_urls,'repo_score':repo_score,'topics':topics}
+def main(url):
+	cves = json.loads(cve_detection(url))
+	severity = {'LOW':0,'MEDIUM':0,'HIGH':0,'CRITICAL':0}
+	try:
+		for class_vulns in cves['Results']:
+			for vuln in class_vulns['Vulnerabilities']:
+				if vuln['Severity'] not in severity:
+					severity[vuln['Severity']] = 1
+				else:
+					severity[vuln['Severity']] += 1
+	except KeyError:
+		pass
+	num_trash_urls = scan_files(url)
+	repo_score, topics = metadata_analysis(url)
+	return {'severity':severity,'num_trash_urls':num_trash_urls,'repo_score':repo_score,'topics':topics}
     
 @app.route('/')
 def index():
@@ -123,15 +120,22 @@ def index():
 
 @app.route('/result',methods=['GET'])
 def result():
-    url = request.args.get('url')
-    result = main(url)
-    message = "This repo cannot be said to be malicious or malicious, but the low amount of eyeballs on it make it not trustworthy enough to use on a large scale without verification."
-    if result['topics'] or result['severity'] > 0:
-        message = "This repo can be malicious"
-    result['repo_score'] -= result['severity']['LOW'] * 3 + result['severity']['MEDIUM'] * 5 + result['severity']['HIGH'] * 8 + result['severity']['CRITICAL'] * 12
-    if result['repo_score'] < 30:
-        message = 'This repo can be vulnerable'
-    elif result['repo_score'] > 100:
-        message= "This repo is very secure"
-    return render_template('result.html',message=message, low = result['severity']['LOW'],
-                            medium = result['severity']['MEDIUM'], high = result['severity']['HIGH'], critical = result['severity']['CRITICAL'])
+	url = request.args.get('URL')
+	try:
+		if 'pypi.org' in url:
+			url = get_package_of_url(url,'Pypi')
+		elif 'npmjs.com' in url:
+			url = get_package_of_url(url,'NPM')
+		result = main(url)
+	except Exception:
+		return 'Couldn\'t find repo <br> <a href="/">Go back</a>'
+	message = "This repo cannot be said to be malicious or malicious, but the low amount of eyeballs on it make it not trustworthy enough to use on a large scale without verification."
+	result['repo_score'] -= result['severity']['LOW'] * 3 + result['severity']['MEDIUM'] * 5 + result['severity']['HIGH'] * 10 + result['severity']['CRITICAL'] * 12
+	if result['topics'] or result['num_trash_urls'] > 0 or result['severity']['CRITICAL'] > 0:
+		message = "This repo can be malicious"
+	elif result['repo_score'] > 100:
+		message= "This repo is very secure"
+	return render_template('result.html',message=message, low = result['severity']['LOW'],
+                            medium = result['severity']['MEDIUM'], high = result['severity']['HIGH'], critical = result['severity']['CRITICAL'],score=result['repo_score'])
+
+app.run(host='0.0.0.0',port=80)
