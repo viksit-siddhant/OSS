@@ -1,10 +1,57 @@
 <html>
-    <body>
-        <form action="/result">
-            Enter a github repository, a pypy package link, or an NPM link:
-            <input type="text" name="URL">
-            <input type="submit">
-        </form>
-	Please wait for the results to load
-    </body>
+
+<head>
+    <title>Notty OSS</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Space Grotesk' rel='stylesheet'>
+    <style>
+        input[type=text],
+        select {
+            width: 60%;
+            padding: 12px 20px;
+            margin: 8px 0px;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: px;
+            box-sizing: border-box;
+        }
+
+        input[type=submit] {
+            width: 40%;
+            background-color: #38C9A6;
+            color: white;
+            padding: 14px 20px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Space Grotesk';
+            font-size: 14px;
+        }
+
+        body {
+            font-family: 'Space Grotesk';
+            font-size: 22px;
+            background: #091F2E;
+            color: #38C9A6;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Notty OSS</h1>
+    <br>
+    <form action="/result">
+        Enter a GitHub repository, a PyPI package link, or an NPM link:<br>
+        <input type="text" name="URL"><br>
+        <input type="submit">
+    </form>
+    <br>
+    <br>
+    Please wait for the results to load.
+</body>
+
 </html>
