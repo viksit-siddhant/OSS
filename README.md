@@ -1,5 +1,5 @@
 # Notty OSS
-This is a server currently hosted on http://20.219.9.1/ that helps to determine the trustworthiness of a repo.
+This is an app that helps to determine the trustworthiness of a repo.
 
 ## How to set this up for yourself
 1. Clone the repository and cd into it
